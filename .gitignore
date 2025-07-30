@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+.DS_Store
+whisper.cpp/models/
+whisper.cpp/transcripts/
+whisper-backend/uploads/
+dist/
+build/
