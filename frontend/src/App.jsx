@@ -233,14 +233,7 @@ function App() {
 
         {loading && (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-6"></div>
             <div className="space-y-2">
-              <p className="text-lg text-gray-700 font-medium">
-                🧠 AI is analyzing your video...
-              </p>
-              <p className="text-sm text-gray-500">
-                Creating a thoughtful summary with personality
-              </p>
               <p className="text-xs text-gray-400">
                 This might take a few minutes for longer videos - we're making it worth the wait! ⏳
               </p>
