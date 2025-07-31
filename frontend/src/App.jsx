@@ -13,9 +13,10 @@ function App() {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Use whatever URL vercel ls shows as working
   const API_URL = import.meta.env.VITE_API_URL || 
     (import.meta.env.PROD 
-      ? 'https://ai-video-summarizer-backend.vercel.app'  // Your permanent domain
+      ? 'https://whisper-backend-jt8lzltbd-elvis-projects-7d4af51e.vercel.app'  // Current working URL
       : 'http://localhost:3001'
     );
 
