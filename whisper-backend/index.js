@@ -29,17 +29,25 @@ const openrouter = new OpenAI({
 // Make sure you're using generic environment variables
 const PORT = process.env.PORT || 3001;
 
-// Generic CORS setup (works for any platform)
+// Fix CORS - add your Netlify domain
 app.use(cors({
   origin: [
-    'https://ai-video-summarizer.netlify.app',
+    'https://ai-video-summarizer.netlify.app',  // Your Netlify site
+    'https://whisper-backend-bsoxenqz2-elvis-projects-7d4af51e.vercel.app', // Your Vercel backend
     'https://localhost:5174',
     'https://192.168.1.105:5174',
     'http://localhost:5174',
-    'http://192.168.1.105:5174'
+    'http://192.168.1.105:5174',
+    'https://app.netlify.com',  // Netlify preview builds
+    'https://*.netlify.app'     // All Netlify domains
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Add preflight handling for all routes
+app.options('*', cors());
 
 app.use(express.json());
 
