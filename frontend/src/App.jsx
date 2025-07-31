@@ -15,7 +15,7 @@ function App() {
 
   const API_URL = import.meta.env.VITE_API_URL || 
     (import.meta.env.PROD 
-      ? 'https://whisper-backend-5qy0uqdda-elvis-projects-7d4af51e.vercel.app'  // UPDATED URL
+      ? 'https://ai-video-summarizer-backend.vercel.app'  // Your permanent domain
       : 'http://localhost:3001'
     );
 
