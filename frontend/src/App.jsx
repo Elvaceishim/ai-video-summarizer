@@ -104,6 +104,10 @@ function App() {
       const formData = new FormData();
       formData.append('audio', file);
 
+      console.log('🔗 API_URL being used:', API_URL);
+      console.log('🌍 Environment:', import.meta.env.PROD ? 'PRODUCTION' : 'DEVELOPMENT');
+      console.log('🎯 Full URL:', `${API_URL}/transcribe`);
+      
       const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
         body: formData,
