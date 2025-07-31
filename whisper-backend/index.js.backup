@@ -1,220 +1,55 @@
 const express = require('express');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
 const cors = require('cors');
-const OpenAI = require('openai');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 
-// OpenRouter configuration (uses OpenAI SDK)
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-// CORS configuration - more permissive for development
-const corsOptions = {
+// Simplified CORS - remove the problematic wildcard patterns
+app.use(cors({
   origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5174', // Vite sometimes uses this port
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
     'https://ai-video-summarizer.netlify.app',
-    'https://localhost:5173' // HTTPS localhost
+    'https://whisper-backend-bsoxenqz2-elvis-projects-7d4af51e.vercel.app',
+    'http://localhost:5174',
+    'http://192.168.1.105:5174'
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  optionsSuccessStatus: 200
-};
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
-app.use(cors(corsOptions));
 app.use(express.json());
 
-// Create uploads directory
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Configure multer for file uploads
+// Multer configuration
 const storage = multer.diskStorage({
-  destination: uploadDir,
-  filename: (req, file, cb) => {
-    const timestamp = Date.now();
-    const ext = path.extname(file.originalname);
-    cb(null, `${timestamp}-${file.originalname}`);
+  destination: function (req, file, cb) {
+    const uploadsDir = './uploads';
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir);
+    }
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
   }
 });
 
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
-});
+const upload = multer({ storage: storage });
 
-// Health check endpoint
+// Routes
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    service: 'AI Video Summarizer Backend',
-    provider: 'OpenRouter',
-    models: {
-      transcription: 'Built-in audio processing',
-      summarization: 'mistralai/mistral-7b-instruct'
-    }
+  res.json({
+    status: 'OK',
+    service: 'AI Video Summarizer - Clean Format',
+    timestamp: new Date().toISOString()
   });
 });
 
-// Simple audio processing function (extracts basic info)
-function processAudioFile(filePath, filename) {
-  // For demo purposes, we'll create a realistic transcript based on file characteristics
-  const fileSizeInMB = (fs.statSync(filePath).size / (1024 * 1024)).toFixed(2);
-  const estimatedDuration = Math.floor(parseFloat(fileSizeInMB) * 2); // Rough estimate
-  
-  // Generate a realistic demo transcript
-  const transcript = `This is a ${estimatedDuration}-minute video titled "${filename}". The content includes various discussions, explanations, and insights that would be captured through professional audio transcription. Key topics covered include technology, innovation, and practical applications. The speaker presents information in a clear, structured manner with examples and detailed explanations. Various technical concepts are explored with real-world applications and use cases. The presentation maintains an engaging tone throughout, making complex topics accessible to the audience.`;
-  
-  return {
-    transcript,
-    duration: estimatedDuration,
-    wordCount: transcript.split(' ').length
-  };
-}
+// Add your transcribe route here...
 
-// Main transcription endpoint
-app.post('/transcribe', upload.single('audio'), async (req, res) => {
-  try {
-    console.log('=== New Transcription Request ===');
-    console.log('Uploaded file:', req.file);
-
-    if (!req.file) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No file uploaded' 
-      });
-    }
-
-    const uploadedPath = req.file.path;
-    const fileSizeInMB = (req.file.size / (1024 * 1024)).toFixed(2);
-    
-    console.log(`📁 Processing file: ${req.file.originalname}`);
-    console.log(`📊 File size: ${fileSizeInMB} MB`);
-
-    // Check API key
-    if (!process.env.OPENROUTER_API_KEY) {
-      throw new Error('OpenRouter API key not configured');
-    }
-
-    console.log('🔑 OpenRouter API Key present:', process.env.OPENROUTER_API_KEY ? 'Yes' : 'No');
-
-    // Step 1: Process audio file (demo transcription)
-    console.log('🎯 Processing audio content...');
-    const audioResult = processAudioFile(uploadedPath, req.file.originalname);
-    const cleanTranscript = audioResult.transcript;
-    const wordCount = audioResult.wordCount;
-
-    console.log(`✅ Audio processing completed: ${wordCount} words`);
-
-    // Step 2: Generate summary with OpenRouter (Mistral)
-    console.log('🤖 Generating AI summary with OpenRouter...');
-
-    const summaryPrompt = `You are a friendly and insightful AI assistant who creates engaging video summaries with personality. 
-
-Analyze this video transcript and create a summary that includes:
-- A catchy title or opening line that captures the essence
-- Key points in bullet format with engaging language
-- Any interesting details, numbers, or quotes worth highlighting  
-- The overall tone/mood of the video
-- A brief takeaway or conclusion
-
-Make it feel like a friend is telling you about a cool video they just watched. Use emojis where appropriate and write in a conversational, engaging style.
-
-Video Transcript:
-${cleanTranscript}`;
-
-    const completion = await openai.chat.completions.create({
-      model: "mistralai/mistral-7b-instruct",
-      messages: [
-        {
-          role: "user",
-          content: summaryPrompt
-        }
-      ],
-      max_tokens: 500,
-      temperature: 0.8
-    });
-
-    const summary = completion.choices[0].message.content;
-
-    console.log('✅ Summary generated successfully!');
-    console.log(`📝 Summary length: ${summary.length} characters`);
-
-    // Clean up uploaded file
-    try {
-      fs.unlinkSync(uploadedPath);
-      console.log('🗑️ Cleaned up uploaded file');
-    } catch (cleanupError) {
-      console.log('⚠️ Could not clean up file:', cleanupError.message);
-    }
-
-    // Return successful response
-    res.json({
-      success: true,
-      transcript: cleanTranscript,
-      summary: summary,
-      wordCount: wordCount,
-      fileSizeInMB: parseFloat(fileSizeInMB),
-      processingTime: new Date().toISOString(),
-      provider: 'OpenRouter',
-      model: 'mistralai/mistral-7b-instruct'
-    });
-
-  } catch (error) {
-    console.error('❌ Error:', error.message);
-    console.error('Error details:', {
-      code: error.code,
-      type: error.type,
-      status: error.status
-    });
-    
-    // Clean up file if error occurs
-    if (req.file && req.file.path) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (cleanupError) {
-        console.log('⚠️ Could not clean up file after error');
-      }
-    }
-
-    // Return error response
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      provider: 'OpenRouter',
-      suggestion: 'Check API key and try again'
-    });
-  }
-});
-
-// Add explicit OPTIONS handler for preflight requests
-app.options('*', cors(corsOptions));
-
-// Start server
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log('=== AI Video Summarizer Backend ===');
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log('🌐 Powered by OpenRouter AI');
-  console.log('🤖 Model: Mistral-7B-Instruct');
-  console.log('📁 Upload directory:', uploadDir);
-  console.log('🌐 CORS enabled for frontend domains');
-  
-  if (!process.env.OPENROUTER_API_KEY) {
-    console.log('⚠️  WARNING: OPENROUTER_API_KEY not set!');
-  } else {
-    console.log('✅ OpenRouter API key configured');
-  }
 });
