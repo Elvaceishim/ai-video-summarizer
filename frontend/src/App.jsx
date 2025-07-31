@@ -1,257 +1,264 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import './App.css';
 
 function App() {
   const [file, setFile] = useState(null);
-  const [transcript, setTranscript] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [videoPreview, setVideoPreview] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [progress, setProgress] = useState(''); // ADD this new state variable
-  const [result, setResult] = useState(null); // ADD this new state variable
 
-  useEffect(() => {
-    if (file && file.type.startsWith('video/')) {
-      const url = URL.createObjectURL(file);
-      setVideoPreview(url);
+  const API_URL = 'http://192.168.1.105:3001';
 
-      // Clean up URL object when file changes or component unmounts
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setVideoPreview(null);
-    }
-  }, [file]);
-
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-    setTranscript('');
-    setError('');
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (!isDragging) setIsDragging(true);
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer.files[0];
+    
+    if (droppedFile && isValidFile(droppedFile)) {
+      setFile(droppedFile);
+      setError(null);
+    } else {
+      setError('Please select a valid video or audio file');
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const selectedFile = e.target.files[0];
+    
+    if (selectedFile && isValidFile(selectedFile)) {
+      setFile(selectedFile);
+      setError(null);
+    } else {
+      setError('Please select a valid video or audio file');
+    }
+  };
+
+  const isValidFile = (file) => {
+    const validTypes = [
+      'video/mp4', 'video/avi', 'video/mov', 'video/quicktime',
+      'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/m4a',
+      'video/x-msvideo', 'audio/mp4'
+    ];
+    
+    const hasValidType = validTypes.includes(file.type);
+    const hasValidExtension = file.name.match(/\.(mp4|avi|mov|mp3|wav|m4a)$/i);
+    
+    return hasValidType || hasValidExtension;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     
     if (!file) {
-      setError('Please select a file first.');
+      setError('Please select a file first');
       return;
     }
 
-    setLoading(true);
-    setError('');
-    setTranscript('');
-    setProgress('Uploading file...');
-
-    const formData = new FormData();
-    formData.append('audio', file);
-
-    // ✅ ADD THIS: Use environment variable or localhost
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+    
     try {
-      // ✅ ADD BETTER LOGGING
-      console.log('Making request to:', `${API_URL}/transcribe`);
-      console.log('Uploading file:', file.name, 'Size:', file.size);
-      console.log('⏳ This may take 2-5 minutes for long videos...');
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, 600000); // 10 minute timeout
+      const formData = new FormData();
+      formData.append('audio', file);
 
-      // ✅ CHANGE THIS LINE: Use the API_URL variable
       const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
         body: formData,
-        signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-
-      // ✅ ADD BETTER ERROR HANDLING
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('✅ Response received:', data);
       
-      setResult(data);
-      setTranscript(data.summary || data.transcript || 'Summary generated successfully');
-      setProgress('');
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        setError('Request timed out after 10 minutes. Try a shorter video.');
+      if (data.success) {
+        setResult(data);
       } else {
-        console.error('Upload error details:', error);
-        setError(`Error processing video: ${error.message}`);
+        throw new Error(data.error || 'Unknown error');
       }
-      setTranscript('Error processing video. Please try again.');
-      setProgress('');
+
+    } catch (error) {
+      setError(`Processing failed: ${error.message}`);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const resetUpload = () => {
+    setFile(null);
+    setResult(null);
+    setError(null);
+    setIsLoading(false);
+  };
+
+  const copySummary = () => {
+    if (result?.summary) {
+      navigator.clipboard.writeText(result.summary);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
     }
   };
 
   const downloadSummary = () => {
-    if (!transcript) return;
-
-    const element = document.createElement('a');
-    const file = new Blob([transcript], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `video-summary-${Date.now()}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
-  const copySummary = async () => {
-    if (!transcript) return;
-
-    try {
-      await navigator.clipboard.writeText(transcript);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = transcript;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
+    if (result?.summary) {
+      const element = document.createElement('a');
+      const file = new Blob([result.summary], { type: 'text/plain' });
+      element.href = URL.createObjectURL(file);
+      element.download = `summary-${Date.now()}.txt`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ maxWidth: 600, margin: '2rem auto', fontFamily: 'Arial, sans-serif' }}>
-      <header className="bg-blue-600 text-white py-8 px-4 shadow-lg">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-bold mb-2">AI Video Summarizer</h1>
-          <p className="text-blue-100 text-lg">Upload your video to get an AI-powered summary</p>
-        </div>
-      </header>
-      
-      <main className="max-w-4xl mx-auto py-8 px-4">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Video Upload</h2>
-          <p className="text-gray-600 mb-4">Upload your video file here to get your summarization</p>
-          
-          <form onSubmit={handleSubmit}>
-            <input type="file" accept="audio/*,video/*" onChange={handleFileChange} className="border-2 border-dashed border-gray-300 rounded-lg p-4 w-full mb-4" />
-            <button type="submit" disabled={loading} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors w-full">
-              {loading ? 'Transcribing...' : 'Transcribe'}
-            </button>
-          </form>
+    <div className="app">
+      <div className="container">
+        <header className="header">
+          <h1>🎬 AI Video Summarizer</h1>
+          <p>Upload your video or audio file for AI-powered transcription and summarization</p>
+        </header>
 
-          {videoPreview && (
-            <div style={{ marginTop: '1rem' }}>
-              <h3>Video Preview:</h3>
-              <video src={videoPreview} controls width="100%" style={{ borderRadius: 8 }} />
+        <div className="upload-section">
+          {!file ? (
+            <div
+              className={`upload-area ${isDragging ? 'dragging' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => document.getElementById('file-input').click()}
+            >
+              <div className="upload-content">
+                <div className="upload-icon">📁</div>
+                <h3>Drop your file here or click to browse</h3>
+                <p>Supports MP4, AVI, MOV, MP3, WAV, M4A files</p>
+              </div>
+              <input
+                id="file-input"
+                type="file"
+                accept="video/*,audio/*"
+                onChange={handleFileSelect}
+              />
+            </div>
+          ) : (
+            <div className="file-preview">
+              <div className="file-info">
+                <div className="file-icon">
+                  {file.type.startsWith('video/') ? '🎬' : '🎵'}
+                </div>
+                <div className="file-details">
+                  <h3>{file.name}</h3>
+                  <p>{formatFileSize(file.size)}</p>
+                  <p>{file.type || 'Unknown type'}</p>
+                </div>
+              </div>
+              <div className="file-actions">
+                <button 
+                  className="btn btn-secondary"
+                  onClick={resetUpload}
+                  disabled={isLoading}
+                >
+                  Change File
+                </button>
+              </div>
             </div>
           )}
 
-          {error && <p style={{ color: 'red' }}>{error}</p>}
+          {error && (
+            <div className="error-message">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {file && (
+            <button 
+              className="btn-primary"
+              onClick={handleSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <div className="loading-spinner"></div>
+                  Processing...
+                </>
+              ) : (
+                '🎯 Transcribe & Summarize'
+              )}
+            </button>
+          )}
         </div>
 
-        {/* Summary Section */}
-        {(transcript || loading) && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-semibold text-gray-800">Summary</h2>
-              
-              {transcript && (
-                <div className="flex space-x-2">
+        {result && (
+          <div className="results-section">
+            <div className="results-header">
+              <h2>✅ Results</h2>
+              <div className="stats">
+                {result.wordCount && <span>📝 {result.wordCount} words</span>}
+                {result.duration && <span>⏱️ {Math.round(result.duration)}s</span>}
+                <span>🤖 AI-powered</span>
+              </div>
+            </div>
+
+            <div className="result-card">
+              <div className="result-header">
+                <h3>📋 Summary</h3>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
                     onClick={copySummary}
-                    className="flex items-center space-x-2 bg-green-500 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    className="copy-btn"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    <span>{copySuccess ? 'Copied!' : 'Copy'}</span>
+                    {copySuccess ? 'Copied!' : 'Copy'}
                   </button>
-                  
                   <button
                     onClick={downloadSummary}
-                    className="flex items-center space-x-2 bg-purple-500 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    className="copy-btn"
+                    style={{ background: '#6f42c1' }}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>Download .txt</span>
+                    Download
                   </button>
                 </div>
-              )}
-            </div>
-            
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                <span className="ml-3 text-gray-600">
-                  {progress || 'Processing...'} {/* ← Change this line */}
-                </span>
               </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <pre className="whitespace-pre-wrap text-gray-700 leading-relaxed">{transcript}</pre>
-              </div>
-            )}
-          </div>
-        )}
-
-        {result && (
-          <div className="mt-8">
-            {/* Only Summary Section - NO Transcript */}
-            {result.summary && (
-              <div className="space-y-4">
-                
-                {/* Metadata */}
-                <div className="flex items-center gap-4 text-sm text-gray-500 border-t pt-4">
-                  {result.wordCount && (
-                    <span className="flex items-center gap-1">
-                      📝 {result.wordCount} words processed
-                    </span>
-                  )}
-                  {result.duration && (
-                    <span className="flex items-center gap-1">
-                      ⏱️ {Math.round(result.duration)}s video
-                    </span>
-                  )}
-                  <span className="flex items-center gap-1">
-                    🤖 AI-powered analysis
-                  </span>
+              <div className="result-content">
+                <div className="summary">
+                  <pre>{result.summary}</pre>
                 </div>
               </div>
-            )}
-            
-            {/* Error state */}
-            {!result.summary && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-yellow-800">
-                  ⚠️ Video processed but summary generation failed. Please try again.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {loading && (
-          <div className="text-center py-12">
-            <div className="space-y-2">
-              <p className="text-xs text-gray-400">
-                This might take a few minutes for longer videos - we're making it worth the wait! ⏳
-              </p>
             </div>
+
+            <button 
+              className="btn-primary"
+              onClick={resetUpload}
+              style={{ marginTop: '2rem' }}
+            >
+              🔄 Process Another File
+            </button>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

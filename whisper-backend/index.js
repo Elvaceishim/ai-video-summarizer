@@ -24,32 +24,32 @@ const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-// CORS configuration
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:5174', 
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'https://ai-video-summarizer.netlify.app'
-  ];
-  
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-  next();
-});
+// Simple CORS for mobile development
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow all localhost and local network requests
+    if (origin.includes('localhost') || 
+        origin.includes('127.0.0.1') ||
+        origin.includes('192.168.') ||
+        origin.includes('10.0.') ||
+        origin.includes('172.')) {
+      return callback(null, true);
+    }
+    
+    // Allow your deployed app
+    if (origin.includes('netlify.app')) {
+      return callback(null, true);
+    }
+    
+    callback(null, true); // Allow all for development
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
+}));
 
 app.use(express.json());
 
@@ -190,13 +190,19 @@ MAIN TAKEAWAYS:
 Keep it simple, clean, and easy to read. Use only bullet points with no other formatting.`;
 }
 
-// Health check
+// Add this simple test endpoint at the top of your routes:
+
+app.get('/test', (req, res) => {
+  console.log('Test endpoint hit!');
+  res.json({ message: 'Backend is working!', ip: req.ip, headers: req.headers });
+});
+
 app.get('/health', (req, res) => {
+  console.log('Health check hit!');
   res.json({ 
     status: 'OK', 
     service: 'AI Video Summarizer - Clean Format',
-    transcription: 'AssemblyAI Real Speech-to-Text',
-    summarization: 'OpenRouter Clean Bullet Points'
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -313,9 +319,19 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log('🎙️ AI Video Summarizer - Clean Format');
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log('📝 Clean bullet-point summaries');
-  console.log('🎯 Real transcription + simple formatting');
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('🎙️ AI Video Summarizer Backend');
+  console.log(`🚀 Server running on ALL interfaces`);
+  console.log(`📱 iPhone Backend: http://192.168.1.105:${PORT}/health`);
+  console.log(`💻 Mac Backend: http://localhost:${PORT}/health`);
+  
+  // Test endpoints
+  setTimeout(() => {
+    console.log('\n🔧 Testing local access...');
+    fetch(`http://localhost:${PORT}/health`)
+      .then(res => res.json())
+      .then(data => console.log('✅ Local test:', data))
+      .catch(err => console.log('❌ Local test failed:', err.message));
+  }, 1000);
 });
