@@ -1,8 +1,10 @@
 const express = require('express');
-const multer = require('multer');
+const https = require('https');
+const http = require('http');
 const fs = require('fs');
-const path = require('path');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
 const OpenAI = require('openai');
 const { AssemblyAI } = require('assemblyai');
 const ffmpeg = require('fluent-ffmpeg');
@@ -24,31 +26,16 @@ const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-// Simple CORS for mobile development
+// CORS configuration
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Allow all localhost and local network requests
-    if (origin.includes('localhost') || 
-        origin.includes('127.0.0.1') ||
-        origin.includes('192.168.') ||
-        origin.includes('10.0.') ||
-        origin.includes('172.')) {
-      return callback(null, true);
-    }
-    
-    // Allow your deployed app
-    if (origin.includes('netlify.app')) {
-      return callback(null, true);
-    }
-    
-    callback(null, true); // Allow all for development
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type']
+  origin: [
+    'https://ai-video-summarizer.netlify.app',
+    'https://localhost:5174',
+    'https://192.168.1.105:5174',
+    'http://localhost:5174',
+    'http://192.168.1.105:5174'
+  ],
+  credentials: true
 }));
 
 app.use(express.json());
@@ -190,6 +177,9 @@ MAIN TAKEAWAYS:
 Keep it simple, clean, and easy to read. Use only bullet points with no other formatting.`;
 }
 
+// Add this at the top to handle Railway's dynamic port
+const PORT = process.env.PORT || 3001;
+
 // Add this simple test endpoint at the top of your routes:
 
 app.get('/test', (req, res) => {
@@ -318,20 +308,32 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3001;
+// const PORT = process.env.PORT || 3001;
+
+// Try to start HTTPS server, fallback to HTTP
+try {
+  // HTTPS Configuration
+  const httpsOptions = {
+    key: fs.readFileSync('key.pem'),
+    cert: fs.readFileSync('cert.pem')
+  };
+
+  https.createServer(httpsOptions, app).listen(PORT, '0.0.0.0', () => {
+    console.log('🔒 HTTPS Backend Server running');
+    console.log(`📱 iPhone: https://192.168.1.105:${PORT}/health`);
+    console.log(`💻 Mac: https://localhost:${PORT}/health`);
+    console.log('⚠️  You may need to accept the self-signed certificate');
+  });
+} catch (error) {
+  console.log('⚠️  HTTPS failed, starting HTTP server...');
+  http.createServer(app).listen(PORT, '0.0.0.0', () => {
+    console.log('🌐 HTTP Backend Server running (fallback)');
+    console.log(`📱 iPhone: http://192.168.1.105:${PORT}/health`);
+    console.log(`💻 Mac: http://localhost:${PORT}/health`);
+  });
+}
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log('🎙️ AI Video Summarizer Backend');
-  console.log(`🚀 Server running on ALL interfaces`);
-  console.log(`📱 iPhone Backend: http://192.168.1.105:${PORT}/health`);
-  console.log(`💻 Mac Backend: http://localhost:${PORT}/health`);
-  
-  // Test endpoints
-  setTimeout(() => {
-    console.log('\n🔧 Testing local access...');
-    fetch(`http://localhost:${PORT}/health`)
-      .then(res => res.json())
-      .then(data => console.log('✅ Local test:', data))
-      .catch(err => console.log('❌ Local test failed:', err.message));
-  }, 1000);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌐 Health check: ${process.env.RAILWAY_STATIC_URL || 'http://localhost:' + PORT}/health`);
 });

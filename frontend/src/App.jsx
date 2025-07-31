@@ -9,7 +9,7 @@ function App() {
   const [error, setError] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  const API_URL = 'http://192.168.1.105:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://192.168.1.105:3001';
 
   const handleDragOver = (e) => {
     e.preventDefault();
