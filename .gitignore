@@ -1,9 +1,46 @@
+# Dependencies
 node_modules/
+*/node_modules/
+
+# Environment variables
 .env
-*.log
-.DS_Store
-whisper.cpp/models/
-whisper.cpp/transcripts/
-whisper-backend/uploads/
+*/.env
+
+# Build outputs
 dist/
 build/
+*/dist/
+*/build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Upload files
+uploads/
+*/uploads/
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp

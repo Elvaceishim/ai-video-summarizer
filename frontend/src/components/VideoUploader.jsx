@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 
 const VideoUploader = () => {
+  const [file, setFile] = useState(null);
   const [summary, setSummary] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
 
   const handleUpload = () => {
     setLoading(true);
@@ -26,6 +29,57 @@ const VideoUploader = () => {
     document.body.removeChild(link);
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!file) {
+      setError('Please select a file first');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setResult(null);
+
+    const formData = new FormData();
+    formData.append('audio', file);
+
+    // API_URL configuration - UPDATE THIS
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+    try {
+      // ADD THESE CONSOLE LOGS
+      console.log('Making request to:', `${API_URL}/transcribe`);
+      console.log('File being uploaded:', file.name, file.size);
+      
+      const response = await fetch(`${API_URL}/transcribe`, {
+        method: 'POST',
+        body: formData,
+        // REMOVE any Content-Type header if you have one
+      });
+
+      // ADD THESE CONSOLE LOGS
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Success data:', data);
+      setResult(data);
+      
+    } catch (error) {
+      // IMPROVE ERROR HANDLING
+      console.error('Upload error details:', error);
+      setError(`Error processing video: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-2xl font-semibold text-gray-800 mb-6">
@@ -37,6 +91,7 @@ const VideoUploader = () => {
           type="file"
           accept="video/*,audio/*"
           className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 transition-colors cursor-pointer"
+          onChange={(e) => setFile(e.target.files[0])}
         />
       </div>
 
@@ -112,6 +167,12 @@ const VideoUploader = () => {
         <p className="text-gray-500 mt-4 text-center">
           Upload a video to see the AI-generated summary and transcription.
         </p>
+      )}
+
+      {error && (
+        <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg">
+          {error}
+        </div>
       )}
     </div>
   );

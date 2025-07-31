@@ -39,13 +39,18 @@ function App() {
     setLoading(true);
     setError('');
     setTranscript('');
-    setProgress('Uploading file...'); // ← Add this
+    setProgress('Uploading file...');
 
     const formData = new FormData();
-    formData.append('audio', file); // ✅ Changed from 'file' to 'audio'
+    formData.append('audio', file);
+
+    // ✅ ADD THIS: Use environment variable or localhost
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
     try {
-      console.log('Uploading file:', file.name);
+      // ✅ ADD BETTER LOGGING
+      console.log('Making request to:', `${API_URL}/transcribe`);
+      console.log('Uploading file:', file.name, 'Size:', file.size);
       console.log('⏳ This may take 2-5 minutes for long videos...');
       
       const controller = new AbortController();
@@ -53,7 +58,8 @@ function App() {
         controller.abort();
       }, 600000); // 10 minute timeout
 
-      const response = await fetch('http://localhost:3001/transcribe', {
+      // ✅ CHANGE THIS LINE: Use the API_URL variable
+      const response = await fetch(`${API_URL}/transcribe`, {
         method: 'POST',
         body: formData,
         signal: controller.signal
@@ -61,8 +67,13 @@ function App() {
 
       clearTimeout(timeoutId);
 
+      // ✅ ADD BETTER ERROR HANDLING
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
@@ -70,16 +81,16 @@ function App() {
       
       setResult(data);
       setTranscript(data.summary || data.transcript || 'Summary generated successfully');
-      setProgress(''); // ← Add this
+      setProgress('');
     } catch (error) {
       if (error.name === 'AbortError') {
-        alert('Request timed out after 10 minutes. Try a shorter video.');
+        setError('Request timed out after 10 minutes. Try a shorter video.');
       } else {
-        console.error('Upload error:', error);
-        alert(`Error: ${error.message}`);
+        console.error('Upload error details:', error);
+        setError(`Error processing video: ${error.message}`);
       }
       setTranscript('Error processing video. Please try again.');
-      setProgress(''); // ← Add this
+      setProgress('');
     } finally {
       setLoading(false);
     }
