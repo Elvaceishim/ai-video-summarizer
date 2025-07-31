@@ -26,7 +26,10 @@ const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-// CORS configuration
+// Make sure you're using generic environment variables
+const PORT = process.env.PORT || 3001;
+
+// Generic CORS setup (works for any platform)
 app.use(cors({
   origin: [
     'https://ai-video-summarizer.netlify.app',
@@ -178,7 +181,7 @@ Keep it simple, clean, and easy to read. Use only bullet points with no other fo
 }
 
 // Add this at the top to handle Railway's dynamic port
-const PORT = process.env.PORT || 3001;
+// const PORT = process.env.PORT || 3001;
 
 // Add this simple test endpoint at the top of your routes:
 
@@ -335,5 +338,5 @@ try {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Health check: ${process.env.RAILWAY_STATIC_URL || 'http://localhost:' + PORT}/health`);
+  console.log(`🌐 Health check: /health`);
 });

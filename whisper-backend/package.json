@@ -1,13 +1,7 @@
 {
   "name": "whisper-backend",
   "version": "1.0.0",
-  "description": "AI Video Summarizer Backend with OpenAI APIs",
   "main": "index.js",
-  "license": "MIT",
-  "engines": {
-    "node": "18.x",
-    "npm": ">=8.0.0"
-  },
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
