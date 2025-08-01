@@ -9,16 +9,19 @@ require('dotenv').config();
 
 const app = express();
 
+console.log('✅ Express app created');
+
 // CORS setup FIRST
 app.use(cors({ origin: '*', credentials: false }));
+console.log('✅ CORS middleware added');
 
 // Body parsing middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Add basic routes at the top (your existing routes are perfect)
+// Add basic routes at the top
 app.get('/', (req, res) => {
-  console.log('Root endpoint hit');
+  console.log('🎯 Root endpoint hit');
   res.json({ 
     message: 'AI Video Summarizer Backend is running!',
     status: 'OK',
@@ -27,8 +30,10 @@ app.get('/', (req, res) => {
   });
 });
 
+console.log('✅ Root route defined');
+
 app.get('/health', (req, res) => {
-  console.log('Health endpoint hit');
+  console.log('🏥 Health endpoint hit');
   res.json({
     status: 'OK',
     service: 'AI Video Summarizer',
@@ -36,6 +41,8 @@ app.get('/health', (req, res) => {
     cors: 'enabled'
   });
 });
+
+console.log('✅ Health route defined');
 
 // Multer configuration
 const storage = multer.diskStorage({
@@ -166,9 +173,18 @@ Keep it concise but comprehensive.`
   }
 });
 
+// Use the direct deployment URL that works
+const API_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD 
+    ? 'https://whisper-backend-4j5o7qno2-elvis-projects-7d4af51e.vercel.app'  // Direct URL
+    : 'http://localhost:3001'
+  );
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server successfully running on port ${PORT}`);
+  console.log(`📍 Try: http://localhost:${PORT}/`);
+  console.log(`📍 Try: http://localhost:${PORT}/health`);
 });
 
 // For Vercel
