@@ -9,10 +9,14 @@ require('dotenv').config();
 
 const app = express();
 
-// CORS setup
+// CORS setup FIRST
 app.use(cors({ origin: '*', credentials: false }));
 
-// Add basic routes at the top
+// Body parsing middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Add basic routes at the top (your existing routes are perfect)
 app.get('/', (req, res) => {
   console.log('Root endpoint hit');
   res.json({ 
