@@ -102,39 +102,43 @@ function App() {
       formData.append('file', file);
 
       const response = await fetch(`${API_URL}/transcribe`, {
-        method: "POST",
+        method: 'POST',
         body: formData,
       });
 
-      // Check if response is ok first
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Response error:', errorText);
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
+        throw new Error(`Server error: ${response.status}`);
       }
 
-      // Check content type before parsing JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const errorText = await response.text();
-        console.error('❌ Non-JSON response:', errorText);
-        throw new Error('Server returned non-JSON response');
+      // Try to parse JSON directly without strict content-type checking
+      const responseText = await response.text();
+      console.log('📄 Raw response:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
+        console.error('📄 Response text:', responseText);
+        throw new Error('Invalid JSON response from server');
       }
 
-      const data = await response.json();
-      console.log('✅ Success data:', data);
+      console.log('✅ Parsed data:', data);
 
       if (data.error) {
         throw new Error(data.error);
       }
 
-      setTranscript(data.transcript);
-      setSummaryWithLog(data.summary); // Use the logged version
+      // Success! Show results
+      setResult(data);
+      setIsLoading(false);
+      setError('');
 
     } catch (error) {
       console.error('❌ Transcription error:', error);
-      setError(`Error: ${error.message}`);
-    } finally {
+      setError(error.message);
       setIsLoading(false);
     }
   };

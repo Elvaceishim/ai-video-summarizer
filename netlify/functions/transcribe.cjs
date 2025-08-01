@@ -229,34 +229,29 @@ Keep it well-organized and comprehensive while being concise.`,
     // Clean up temp file
     await unlink(tempPath);
 
-    // Limit response size for local development to prevent CLI crashes
-    const isLocalDev = !process.env.NETLIFY && !process.env.NODE_ENV;
-    let transcript_text = transcript.text;
-    let summary_text = summaryRes.choices[0].message.content;
+    // Don't truncate responses in production
+    const isLocalDev = process.env.NETLIFY_DEV === 'true';
 
-    if (isLocalDev) {
-      // Truncate for local dev to prevent CLI crashes
-      if (transcript_text.length > 500) {
-        transcript_text = transcript_text.substring(0, 500) + "... [truncated for local dev - full version in production]";
-      }
-      if (summary_text.length > 800) {
-        summary_text = summary_text.substring(0, 800) + "... [truncated for local dev - full version in production]";
-      }
-    }
+    let responseData = {
+      success: true,
+      transcript: transcript.text,
+      summary: summaryRes.choices[0].message.content,
+      wordCount: transcript.text.split(" ").length,
+      duration: transcript.audio_duration,
+      fileType: audioExtensions.includes(fileExtension) ? 'audio' : 'video',
+      filename: uploadedFile.filename
+    };
 
+    // At the end of your function, make sure the success response has proper headers:
     return {
       statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        transcript: transcript_text,
-        summary: summary_text,
-        wordCount: transcript.text.split(" ").length,
-        duration: transcript.audio_duration,
-        fileType: audioExtensions.includes(fileExtension) ? 'audio' : 'video',
-        filename: uploadedFile.filename,
-        note: isLocalDev ? "Response truncated for local development" : undefined
-      }),
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Content-Type': 'application/json', // Make sure this is set!
+      },
+      body: JSON.stringify(responseData),
     };
   } catch (error) {
     console.error('❌ Function error:', error);
