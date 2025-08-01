@@ -15,10 +15,10 @@ function App() {
 
   // Use whatever URL vercel ls shows as working
   const API_URL = import.meta.env.VITE_API_URL || 
-    (import.meta.env.PROD 
-      ? 'https://whisper-backend-jt8lzltbd-elvis-projects-7d4af51e.vercel.app'  // Current working URL
-      : 'http://localhost:3001'
-    );
+  (import.meta.env.PROD 
+    ? 'https://whisper-backend-4j5o7qno2-elvis-projects-7d4af51e.vercel.app'  // Use direct working URL
+    : 'http://localhost:3001'
+  );
 
   console.log('🔗 API_URL:', API_URL); // Add this line to debug
 
