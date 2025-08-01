@@ -1,1 +1,7 @@
-@import "tailwindcss";
+/* src/index.css - remove these lines */
+/* @import "tailwindcss"; */
+/* @import "tailwindcss/base"; */
+/* @import "tailwindcss/components"; */
+/* @import "tailwindcss/utilities"; */
+
+/* Keep your custom styles */
