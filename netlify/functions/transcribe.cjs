@@ -1,0 +1,268 @@
+require('dotenv').config();
+
+const fs = require("fs");
+const path = require("path");
+const { tmpdir } = require("os");
+const { v4: uuidv4 } = require("uuid");
+const { unlink } = require("fs/promises");
+const Busboy = require('busboy');
+
+const { OpenAI } = require("openai");
+const { AssemblyAI } = require("assemblyai");
+
+const assembly = new AssemblyAI({
+  apiKey: process.env.ASSEMBLYAI_API_KEY,
+});
+
+const openrouter = new OpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+});
+
+function parseMultipartForm(event) {
+  return new Promise((resolve, reject) => {
+    const files = {};
+    const fields = {};
+    
+    const busboy = Busboy({ 
+      headers: {
+        'content-type': event.headers['content-type'] || event.headers['Content-Type']
+      }
+    });
+
+    busboy.on('file', (fieldname, file, info) => {
+      console.log(`📁 File field: ${fieldname}, filename: ${info.filename}`);
+      
+      const chunks = [];
+      file.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+      
+      file.on('end', () => {
+        files[fieldname] = {
+          data: Buffer.concat(chunks),
+          filename: info.filename,
+          mimetype: info.mimeType
+        };
+        console.log(`✅ File ${fieldname} processed: ${files[fieldname].data.length} bytes`);
+      });
+    });
+
+    busboy.on('field', (fieldname, value) => {
+      fields[fieldname] = value;
+    });
+
+    busboy.on('finish', () => {
+      console.log(`🏁 Busboy finished. Files: ${Object.keys(files).join(', ')}`);
+      resolve({ files, fields });
+    });
+
+    busboy.on('error', (err) => {
+      console.error('❌ Busboy error:', err);
+      reject(err);
+    });
+
+    try {
+      const body = event.isBase64Encoded 
+        ? Buffer.from(event.body, 'base64')
+        : Buffer.from(event.body, 'utf8');
+      
+      console.log(`📦 Decoded body length: ${body.length} bytes`);
+      
+      busboy.write(body);
+      busboy.end();
+    } catch (err) {
+      console.error('❌ Error decoding body:', err);
+      reject(err);
+    }
+  });
+}
+
+exports.handler = async (event) => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  };
+
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: '' };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: "Method not allowed" }),
+    };
+  }
+
+  try {
+    const contentType = event.headers['content-type'] || event.headers['Content-Type'];
+    
+    if (!contentType || !contentType.includes('multipart/form-data')) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: "Content-Type must be multipart/form-data" }),
+      };
+    }
+
+    console.log('🔍 Parsing multipart form...');
+    const { files } = await parseMultipartForm(event);
+    
+    // Find ANY uploaded file (video or audio)
+    const fileKeys = Object.keys(files);
+    console.log(`📋 Available file fields: ${fileKeys.join(', ')}`);
+    
+    if (fileKeys.length === 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: "No file uploaded",
+          message: "Please upload an audio or video file"
+        }),
+      };
+    }
+
+    // Get the first uploaded file (regardless of field name)
+    const fileKey = fileKeys[0];
+    const uploadedFile = files[fileKey];
+    
+    if (!uploadedFile || !uploadedFile.data || uploadedFile.data.length === 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: "Uploaded file is empty",
+          availableFields: fileKeys
+        }),
+      };
+    }
+
+    console.log(`🎬 Processing file: ${uploadedFile.filename}, ${uploadedFile.data.length} bytes`);
+
+    // Support both audio AND video files
+    const audioExtensions = ['.wav', '.mp3', '.m4a', '.flac', '.aac', '.ogg', '.wma'];
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv', '.flv', '.m4v'];
+    const allValidExtensions = [...audioExtensions, ...videoExtensions];
+    
+    const fileExtension = path.extname(uploadedFile.filename || '').toLowerCase();
+
+    if (!allValidExtensions.includes(fileExtension)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: `Invalid file type: ${fileExtension}`,
+          message: `Please upload an audio file (${audioExtensions.join(', ')}) or video file (${videoExtensions.join(', ')})`,
+          receivedFile: uploadedFile.filename
+        }),
+      };
+    }
+
+    // Save file with original extension
+    const tempPath = path.join(tmpdir(), uuidv4() + fileExtension);
+    await fs.promises.writeFile(tempPath, uploadedFile.data);
+    console.log(`💾 Saved to: ${tempPath}`);
+
+    // AssemblyAI can handle both audio AND video files automatically
+    console.log('🔄 Starting transcription with AssemblyAI...');
+    console.log(`📁 File type: ${audioExtensions.includes(fileExtension) ? 'Audio' : 'Video'}`);
+    
+    const transcript = await assembly.transcripts.transcribe({ 
+      audio: tempPath,
+      // Add these options for better processing
+      speech_model: 'best',
+      language_detection: true,
+      punctuate: true,
+      format_text: true
+    });
+
+    if (transcript.status === "error") {
+      throw new Error(`AssemblyAI error: ${transcript.error}`);
+    }
+
+    if (!transcript.text || transcript.text.trim().length === 0) {
+      throw new Error("No speech detected in the file. Please ensure the file contains clear audio.");
+    }
+
+    console.log('🤖 Generating AI summary...');
+    const summaryRes = await openrouter.chat.completions.create({
+      model: "anthropic/claude-3.5-sonnet",
+      messages: [
+        {
+          role: "user",
+          content: `Please analyze this transcript and provide a comprehensive summary in bullet points. Focus on the main topics, key insights, and important details:
+
+**Transcript:**
+${transcript.text}
+
+**Please provide:**
+• **Main Topic/Theme:** What is this content primarily about?
+• **Key Points:** What are the most important points discussed?
+• **Important Details:** Any specific facts, numbers, or conclusions mentioned?
+• **Actionable Items:** Any tasks, recommendations, or next steps mentioned?
+• **Summary:** A brief overall summary in 1-2 sentences
+
+Keep it well-organized and comprehensive while being concise.`,
+        },
+      ],
+      max_tokens: 1500,
+      temperature: 0.3,
+    });
+
+    // Clean up temp file
+    await unlink(tempPath);
+
+    // Limit response size for local development to prevent CLI crashes
+    const isLocalDev = !process.env.NETLIFY && !process.env.NODE_ENV;
+    let transcript_text = transcript.text;
+    let summary_text = summaryRes.choices[0].message.content;
+
+    if (isLocalDev) {
+      // Truncate for local dev to prevent CLI crashes
+      if (transcript_text.length > 500) {
+        transcript_text = transcript_text.substring(0, 500) + "... [truncated for local dev - full version in production]";
+      }
+      if (summary_text.length > 800) {
+        summary_text = summary_text.substring(0, 800) + "... [truncated for local dev - full version in production]";
+      }
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        transcript: transcript_text,
+        summary: summary_text,
+        wordCount: transcript.text.split(" ").length,
+        duration: transcript.audio_duration,
+        fileType: audioExtensions.includes(fileExtension) ? 'audio' : 'video',
+        filename: uploadedFile.filename,
+        note: isLocalDev ? "Response truncated for local development" : undefined
+      }),
+    };
+  } catch (err) {
+    console.error('❌ Function error:', err);
+    
+    // More detailed error handling
+    let errorMessage = err.message;
+    if (err.message.includes('AssemblyAI')) {
+      errorMessage = "Failed to process the audio/video. Please ensure the file contains clear speech.";
+    } else if (err.message.includes('OpenAI') || err.message.includes('OpenRouter')) {
+      errorMessage = "Transcription successful but summary generation failed. Please try again.";
+    }
+    
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      }),
+    };
+  }
+};

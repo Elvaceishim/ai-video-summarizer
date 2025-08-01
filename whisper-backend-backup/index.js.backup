@@ -1,0 +1,55 @@
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+require('dotenv').config();
+
+const app = express();
+
+// Simplified CORS - remove the problematic wildcard patterns
+app.use(cors({
+  origin: [
+    'https://ai-video-summarizer.netlify.app',
+    'https://whisper-backend-bsoxenqz2-elvis-projects-7d4af51e.vercel.app',
+    'http://localhost:5174',
+    'http://192.168.1.105:5174'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json());
+
+// Multer configuration
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadsDir = './uploads';
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir);
+    }
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
+
+// Routes
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    service: 'AI Video Summarizer - Clean Format',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Add your transcribe route here...
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

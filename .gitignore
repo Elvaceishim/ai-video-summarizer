@@ -53,3 +53,6 @@ whisper-backend/uploads/*
 # Temporary files
 *.tmp
 *.temp
+
+# Local Netlify folder
+.netlify
