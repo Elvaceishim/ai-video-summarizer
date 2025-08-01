@@ -13,8 +13,7 @@ function App() {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
-  const API_URL = "/.netlify/functions/transcribe";
-
+  const API_URL = import.meta.env.VITE_API_URL || '/.netlify/functions';
   console.log('🔗 API URL:', API_URL); // Add this to debug
 
   // Drag and drop handlers
