@@ -19,6 +19,16 @@ const openrouter = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
+// Add this at the top of your netlify/functions/transcribe.cjs handler
+console.log('🔑 Environment variables check:');
+console.log('  ASSEMBLYAI_API_KEY:', process.env.ASSEMBLYAI_API_KEY ? 'Present' : 'Missing');
+console.log('  OPENROUTER_API_KEY:', process.env.OPENROUTER_API_KEY ? 'Present' : 'Missing');
+console.log('  OPENROUTER_API_KEY length:', process.env.OPENROUTER_API_KEY?.length || 0);
+
+if (!process.env.OPENROUTER_API_KEY) {
+  throw new Error('OPENROUTER_API_KEY environment variable is not set');
+}
+
 function parseMultipartForm(event) {
   return new Promise((resolve, reject) => {
     const files = {};
