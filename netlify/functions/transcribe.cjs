@@ -88,7 +88,10 @@ function parseMultipartForm(event) {
   });
 }
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
+  // Set a longer timeout context
+  context.callbackWaitsForEmptyEventLoop = false;
+  
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -255,23 +258,16 @@ Keep it well-organized and comprehensive while being concise.`,
         note: isLocalDev ? "Response truncated for local development" : undefined
       }),
     };
-  } catch (err) {
-    console.error('❌ Function error:', err);
+  } catch (error) {
+    console.error('❌ Function error:', error);
     
-    // More detailed error handling
-    let errorMessage = err.message;
-    if (err.message.includes('AssemblyAI')) {
-      errorMessage = "Failed to process the audio/video. Please ensure the file contains clear speech.";
-    } else if (err.message.includes('OpenAI') || err.message.includes('OpenRouter')) {
-      errorMessage = "Transcription successful but summary generation failed. Please try again.";
-    }
-    
+    // Return proper JSON error response
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        error: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      body: JSON.stringify({
+        error: error.message,
+        details: 'Function timeout or processing error'
       }),
     };
   }

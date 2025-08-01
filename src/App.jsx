@@ -106,16 +106,30 @@ function App() {
         body: formData,
       });
 
+      // Check if response is ok first
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Response error:', errorText);
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
+      }
+
+      // Check content type before parsing JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const errorText = await response.text();
+        console.error('❌ Non-JSON response:', errorText);
+        throw new Error('Server returned non-JSON response');
+      }
 
       const data = await response.json();
       console.log('✅ Success data:', data);
 
-      if (data.success) {
-        setTranscript(data.transcript);
-        setSummaryWithLog(data.summary); // Use the logged version
-      } else {
-        throw new Error(data.error || 'Transcription failed');
+      if (data.error) {
+        throw new Error(data.error);
       }
+
+      setTranscript(data.transcript);
+      setSummaryWithLog(data.summary); // Use the logged version
 
     } catch (error) {
       console.error('❌ Transcription error:', error);
