@@ -84,6 +84,8 @@ function App() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const MAX_FILE_SIZE = 6 * 1024 * 1024; // 6MB in bytes
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -92,8 +94,14 @@ function App() {
       return;
     }
 
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`File too large! Maximum size is 6MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB. Please compress your video first.`);
+      return;
+    }
+
     setIsLoading(true);
-    setError(null);
+    setError('');
     setResults(null);
     
     try {
@@ -414,10 +422,13 @@ Report created on: ${new Date().toLocaleString()}
               {file && (
                 <div className="selected-file">
                   <div className="file-info">
-                    <span className="file-icon">🎵</span>
+                    <span className="file-icon">🎬</span>
                     <span className="file-name">{file.name}</span>
                     <span className="file-size">
-                      ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                      {(file.size / 1024 / 1024).toFixed(1)}MB
+                      {file.size > MAX_FILE_SIZE && (
+                        <span style={{color: 'red'}}> - TOO LARGE!</span>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -439,6 +450,16 @@ Report created on: ${new Date().toLocaleString()}
               {error}
             </div>
           )}
+
+          <div className="upload-tips">
+            <h4>📋 Upload Tips:</h4>
+            <ul>
+              <li>✅ Maximum file size: <strong>6MB</strong></li>
+              <li>🎬 Supported formats: MP4, MOV, AVI, MP3, WAV</li>
+              <li>⚡ For best results, use videos under 5 minutes</li>
+              <li>🔧 Large files? <a href="https://www.freeconvert.com/video-compressor" target="_blank">Compress your video here</a></li>
+            </ul>
+          </div>
         </div>
 
         {results && (

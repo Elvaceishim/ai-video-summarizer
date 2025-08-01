@@ -89,28 +89,44 @@ function parseMultipartForm(event) {
 }
 
 exports.handler = async (event, context) => {
-  // Set a longer timeout context
-  context.callbackWaitsForEmptyEventLoop = false;
-  
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Content-Type': 'application/json',
   };
 
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 200, headers, body: '' };
-  }
-
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: "Method not allowed" }),
-    };
+  // Handle preflight requests
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers };
   }
 
   try {
+    // Check request size
+    const contentLength = event.headers['content-length'] || event.headers['Content-Length'];
+    if (contentLength && parseInt(contentLength) > 6 * 1024 * 1024) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'File too large. Maximum size is 6MB. Please compress your video first.',
+          maxSize: '6MB',
+          receivedSize: `${(parseInt(contentLength) / 1024 / 1024).toFixed(1)}MB`
+        }),
+      };
+    }
+
+    // Set a longer timeout context
+    context.callbackWaitsForEmptyEventLoop = false;
+    
+    if (event.httpMethod !== "POST") {
+      return {
+        statusCode: 405,
+        headers,
+        body: JSON.stringify({ error: "Method not allowed" }),
+      };
+    }
+
     const contentType = event.headers['content-type'] || event.headers['Content-Type'];
     
     if (!contentType || !contentType.includes('multipart/form-data')) {
@@ -261,8 +277,8 @@ Keep it well-organized and comprehensive while being concise.`,
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: error.message,
-        details: 'Function timeout or processing error'
+        error: error.message || 'Internal server error',
+        details: 'Processing failed'
       }),
     };
   }
