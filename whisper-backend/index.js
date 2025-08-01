@@ -9,72 +9,29 @@ require('dotenv').config();
 
 const app = express();
 
-// Production-ready CORS configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'https://ai-video-summarizer.netlify.app',
-      'http://localhost:3001',
-      'http://localhost:5174',
-      'http://192.168.1.105:5174',
-      'https://localhost:5174'
-    ];
-    
-    // Also allow Netlify preview deployments
-    if (origin.includes('.netlify.app')) {
-      return callback(null, true);
-    }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('❌ CORS blocked origin:', origin);
-      callback(null, true); // Allow all for now to debug
-    }
-  },
-  credentials: false,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With', 
-    'Content-Type', 
-    'Accept',
-    'Authorization'
-  ],
-  optionsSuccessStatus: 200
-};
+// CORS setup
+app.use(cors({ origin: '*', credentials: false }));
 
-app.use(cors(corsOptions));
-
-// Add explicit preflight handling
-app.options('*', cors(corsOptions));
-
-// Also add manual CORS headers as backup
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  if (!origin || origin.includes('.netlify.app') || origin.includes('localhost')) {
-    res.header('Access-Control-Allow-Origin', origin || '*');
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'false');
-  
-  if (req.method === 'OPTIONS') {
-    console.log('✅ OPTIONS request handled for:', origin);
-    return res.status(200).end();
-  }
-  
-  console.log(`📥 ${req.method} ${req.path} from:`, origin);
-  next();
+// Add basic routes at the top
+app.get('/', (req, res) => {
+  console.log('Root endpoint hit');
+  res.json({ 
+    message: 'AI Video Summarizer Backend is running!',
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    endpoints: ['/health', '/transcribe']
+  });
 });
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.get('/health', (req, res) => {
+  console.log('Health endpoint hit');
+  res.json({
+    status: 'OK',
+    service: 'AI Video Summarizer',
+    timestamp: new Date().toISOString(),
+    cors: 'enabled'
+  });
+});
 
 // Multer configuration
 const storage = multer.diskStorage({
@@ -101,17 +58,6 @@ const client = new AssemblyAI({
 const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: "https://openrouter.ai/api/v1",
-});
-
-// Health check
-app.get('/health', (req, res) => {
-  console.log('Health check requested');
-  res.json({
-    status: 'OK',
-    service: 'AI Video Summarizer',
-    timestamp: new Date().toISOString(),
-    cors: 'enabled'
-  });
 });
 
 // Updated transcribe endpoint with proper AI summarization
@@ -217,8 +163,9 @@ Keep it concise but comprehensive.`
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log('🔗 Health check: http://localhost:' + PORT + '/health');
-  console.log('🎯 CORS: Fully permissive');
 });
+
+// For Vercel
+module.exports = app;
