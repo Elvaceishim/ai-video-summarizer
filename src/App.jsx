@@ -450,16 +450,6 @@ Report created on: ${new Date().toLocaleString()}
               {error}
             </div>
           )}
-
-          <div className="upload-tips">
-            <h4>📋 Upload Tips:</h4>
-            <ul>
-              <li>✅ Maximum file size: <strong>6MB</strong></li>
-              <li>🎬 Supported formats: MP4, MOV, AVI, MP3, WAV</li>
-              <li>⚡ For best results, use videos under 5 minutes</li>
-              <li>🔧 Large files? <a href="https://www.freeconvert.com/video-compressor" target="_blank">Compress your video here</a></li>
-            </ul>
-          </div>
         </div>
 
         {results && (
